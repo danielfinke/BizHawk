@@ -6,8 +6,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-using Microsoft.VisualBasic.ApplicationServices;
-
 using BizHawk.Common;
 using BizHawk.Common.PathExtensions;
 using BizHawk.Client.Common;
@@ -208,41 +206,27 @@ namespace BizHawk.Client.EmuHawk
 
 			try
 			{
-				if (!OSTC.IsUnixHost && GlobalWin.Config.SingleInstanceMode)
+				var mf = new MainForm(args);
+				var title = mf.Text;
+				mf.Show();
+				mf.Text = title;
+				try
 				{
-					try
-					{
-						new SingleInstanceController(args).Run();
-					}
-					catch (ObjectDisposedException)
-					{
-						// Eat it, MainForm disposed itself and Run attempts to dispose of itself.  Eventually we would want to figure out a way to prevent that, but in the meantime it is harmless, so just eat the error
-					}
+					GlobalWin.ExitCode = mf.ProgramRunLoop();
+					if (!mf.IsDisposed)
+						mf.Dispose();
 				}
-				else
+				catch (Exception e) when (GlobalWin.MovieSession.Movie.IsActive() && !(Debugger.IsAttached || VersionInfo.DeveloperBuild))
 				{
-					var mf = new MainForm(args);
-					var title = mf.Text;
-					mf.Show();
-					mf.Text = title;
-					try
+					var result = MessageBox.Show(
+						"EmuHawk has thrown a fatal exception and is about to close.\nA movie has been detected. Would you like to try to save?\n(Note: Depending on what caused this error, this may or may not succeed)",
+						$"Fatal error: {e.GetType().Name}",
+						MessageBoxButtons.YesNo,
+						MessageBoxIcon.Exclamation
+					);
+					if (result == DialogResult.Yes)
 					{
-						GlobalWin.ExitCode = mf.ProgramRunLoop();
-						if (!mf.IsDisposed)
-							mf.Dispose();
-					}
-					catch (Exception e) when (GlobalWin.MovieSession.Movie.IsActive() && !(Debugger.IsAttached || VersionInfo.DeveloperBuild))
-					{
-						var result = MessageBox.Show(
-							"EmuHawk has thrown a fatal exception and is about to close.\nA movie has been detected. Would you like to try to save?\n(Note: Depending on what caused this error, this may or may not succeed)",
-							$"Fatal error: {e.GetType().Name}",
-							MessageBoxButtons.YesNo,
-							MessageBoxIcon.Exclamation
-						);
-						if (result == DialogResult.Yes)
-						{
-							GlobalWin.MovieSession.Movie.Save();
-						}
+						GlobalWin.MovieSession.Movie.Save();
 					}
 				}
 			}
@@ -320,35 +304,6 @@ namespace BizHawk.Client.EmuHawk
 				var fname = Path.Combine(directory, dllname);
 				//it is important that we use LoadFile here and not load from a byte array; otherwise mixed (managed/unmanaged) assemblies can't load
 				return File.Exists(fname) ? Assembly.LoadFile(fname) : null;
-			}
-		}
-
-		private class SingleInstanceController : WindowsFormsApplicationBase
-		{
-			private readonly string[] cmdArgs;
-
-			public SingleInstanceController(string[] args)
-			{
-				cmdArgs = args;
-				IsSingleInstance = true;
-				StartupNextInstance += this_StartupNextInstance;
-			}
-
-			public void Run() => Run(cmdArgs);
-
-			private void this_StartupNextInstance(object sender, StartupNextInstanceEventArgs e)
-			{
-				if (e.CommandLine.Count >= 1)
-					((MainForm)MainForm).LoadRom(e.CommandLine[0], new LoadRomArgs { OpenAdvanced = new OpenAdvanced_OpenRom() });
-			}
-
-			protected override void OnCreateMainForm()
-			{
-				MainForm = new MainForm(cmdArgs);
-				var title = MainForm.Text;
-				MainForm.Show();
-				MainForm.Text = title;
-				GlobalWin.ExitCode = ((MainForm)MainForm).ProgramRunLoop();
 			}
 		}
 	}
