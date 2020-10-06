@@ -12,6 +12,8 @@ namespace BizHawk.Client.EmuHawk
 {
 	public sealed class GuiLuaLibrary : LuaLibraryBase
 	{
+		private static readonly int DPI_SCALE_1X = 96;
+
 		[RequiredService]
 		private IEmulator Emulator { get; set; }
 
@@ -658,6 +660,16 @@ namespace BizHawk.Client.EmuHawk
 				{
 					return;
 				}
+			}
+		}
+
+		[LuaMethodExample("gui.getDisplayScale( );")]
+		[LuaMethod("getDisplayScale", "Get the display scale factor (a float)")]
+		public float GetDisplayScale()
+		{
+			using (var g = GetGraphics())
+			{
+				return g.DpiX / DPI_SCALE_1X;
 			}
 		}
 
